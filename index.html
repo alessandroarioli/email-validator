@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Validator — Alessandro Arioli</title>
+    <meta name="description" content="Real SMTP-based email validation. Check if an email address actually exists.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0f0f11;
+            --surface: #18181b;
+            --surface-2: #1e1e22;
+            --border: #27272a;
+            --text: #fafafa;
+            --text-muted: #a1a1aa;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --accent-glow: rgba(99,102,241,0.15);
+            --green: #34d399;
+            --green-glow: rgba(52,211,153,0.15);
+            --red: #f87171;
+            --red-glow: rgba(248,113,113,0.15);
+            --yellow: #fbbf24;
+            --orange: #fb923c;
+            --radius: 12px;
+        }
+
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+        }
+
+        /* NAV */
+        nav {
+            position: fixed; top: 0; width: 100%; z-index: 100;
+            padding: 16px 24px;
+            background: rgba(15,15,17,0.85);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+        }
+        .nav-inner { max-width: 760px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-weight: 700; font-size: 1.05rem; color: var(--text); text-decoration: none; font-family: 'JetBrains Mono', monospace; }
+        .logo span { color: var(--accent-light); }
+        .back-link { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; transition: color 0.2s; }
+        .back-link:hover { color: var(--text); }
+
+        /* MAIN */
+        main { max-width: 760px; margin: 0 auto; padding: 100px 24px 80px; }
+
+        .hero-head { text-align: center; margin-bottom: 48px; }
+        .hero-head h1 { font-size: 2.4rem; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 12px; }
+        .hero-head p { color: var(--text-muted); font-size: 1rem; max-width: 520px; margin: 0 auto; line-height: 1.7; }
+
+        /* SEARCH BOX */
+        .search-box { display: flex; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+        .search-box input {
+            flex: 1; min-width: 260px;
+            background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 14px 18px; color: var(--text); font-size: 1rem; outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .search-box input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+        .search-box input::placeholder { color: var(--text-muted); font-family: 'Inter', sans-serif; }
+        .btn-check {
+            padding: 14px 28px; border-radius: var(--radius); font-size: 1rem; font-weight: 600;
+            cursor: pointer; border: none; background: var(--accent); color: #fff;
+            display: flex; align-items: center; gap: 8px;
+            transition: all 0.2s; white-space: nowrap;
+        }
+        .btn-check:hover { background: var(--accent-light); transform: translateY(-1px); }
+        .btn-check:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        /* EXAMPLES */
+        .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 40px; align-items: center; }
+        .examples-label { font-size: 0.8rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; margin-right: 4px; }
+        .example-chip {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+            padding: 5px 14px; font-size: 0.8rem; color: var(--text-muted);
+            cursor: pointer; transition: all 0.2s; font-family: 'JetBrains Mono', monospace;
+        }
+        .example-chip:hover { border-color: var(--accent); color: var(--text); }
+
+        /* LOADER */
+        #loader { display: none; flex-direction: column; align-items: center; gap: 16px; padding: 60px 0; }
+        #loader.visible { display: flex; }
+        .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loader-steps { display: flex; flex-direction: column; gap: 8px; font-size: 0.85rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; text-align: center; }
+        .loader-step { opacity: 0; transition: opacity 0.4s; }
+        .loader-step.active { opacity: 1; color: var(--accent-light); }
+        .loader-step.done { opacity: 0.5; color: var(--green); }
+
+        /* RESULT */
+        #result { display: none; }
+        #result.visible { display: block; }
+
+        /* VERDICT CARD */
+        .verdict-card {
+            border-radius: var(--radius); padding: 32px; margin-bottom: 24px;
+            border: 1px solid var(--border); position: relative; overflow: hidden;
+        }
+        .verdict-card::before { content: ''; position: absolute; inset: 0; opacity: 0.06; pointer-events: none; }
+        .verdict-card.valid   { border-color: rgba(52,211,153,0.35); box-shadow: 0 0 40px var(--green-glow); }
+        .verdict-card.valid::before { background: var(--green); }
+        .verdict-card.invalid { border-color: rgba(248,113,113,0.35); box-shadow: 0 0 40px var(--red-glow); }
+        .verdict-card.invalid::before { background: var(--red); }
+        .verdict-card.risky   { border-color: rgba(251,191,36,0.35); box-shadow: 0 0 40px rgba(251,191,36,0.1); }
+        .verdict-card.risky::before { background: var(--yellow); }
+        .verdict-card.unknown { border-color: rgba(251,146,60,0.35); box-shadow: 0 0 40px rgba(251,146,60,0.1); }
+        .verdict-card.unknown::before { background: var(--orange); }
+
+        .verdict-top { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+        .verdict-label { font-size: 0.75rem; font-weight: 600; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+        .verdict-email { font-size: 1.1rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; word-break: break-all; }
+        .verdict-title { font-size: 1.6rem; font-weight: 700; margin-top: 4px; }
+        .verdict-card.valid   .verdict-title { color: var(--green); }
+        .verdict-card.invalid .verdict-title { color: var(--red); }
+        .verdict-card.risky   .verdict-title { color: var(--yellow); }
+        .verdict-card.unknown .verdict-title { color: var(--orange); }
+
+        /* Confidence ring */
+        .conf-wrap { text-align: center; min-width: 100px; }
+        .conf-gauge { width: 90px; height: 90px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-direction: column; margin: 0 auto 6px; position: relative; }
+        .conf-gauge svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+        .gauge-track { fill: none; stroke: var(--border); stroke-width: 7; }
+        .gauge-fill  { fill: none; stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1); }
+        .conf-number { font-size: 1.3rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; line-height: 1; position: relative; z-index: 1; }
+        .conf-sub    { font-size: 0.6rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; position: relative; z-index: 1; }
+        .conf-label  { font-size: 0.72rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+
+        /* CHECKS GRID */
+        .checks-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .check-item {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+            padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;
+        }
+        .check-icon { font-size: 1.1rem; }
+        .check-label { font-size: 0.75rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+        .check-value { font-size: 0.88rem; font-weight: 600; }
+        .check-value.pass { color: var(--green); }
+        .check-value.fail { color: var(--red); }
+        .check-value.warn { color: var(--yellow); }
+        .check-value.muted { color: var(--text-muted); }
+
+        /* MX CARD */
+        .info-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-left: 3px solid var(--accent); border-radius: var(--radius);
+            padding: 18px 22px; margin-bottom: 20px;
+        }
+        .info-card h3 { font-size: 0.82rem; font-weight: 600; color: var(--accent-light); font-family: 'JetBrains Mono', monospace; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .mx-list { display: flex; flex-direction: column; gap: 8px; }
+        .mx-row { display: flex; align-items: center; gap: 12px; font-size: 0.85rem; padding: 8px 12px; background: var(--surface-2); border-radius: 8px; }
+        .mx-priority { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted); min-width: 40px; }
+        .mx-host { font-family: 'JetBrains Mono', monospace; color: var(--text); }
+
+        /* SMTP LOG */
+        .smtp-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-left: 3px solid #22c55e; border-radius: var(--radius);
+            padding: 18px 22px; margin-bottom: 20px;
+        }
+        .smtp-card h3 { font-size: 0.82rem; font-weight: 600; color: #4ade80; font-family: 'JetBrains Mono', monospace; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+        .smtp-log { display: flex; flex-direction: column; gap: 4px; }
+        .smtp-line { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; padding: 3px 0; }
+        .smtp-line.send { color: #818cf8; }
+        .smtp-line.recv { color: #a1a1aa; }
+
+        /* SUGGESTION */
+        .suggestion-card {
+            background: rgba(251,191,36,0.07); border: 1px solid rgba(251,191,36,0.25);
+            border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px;
+            display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+        }
+        .suggestion-text { font-size: 0.9rem; color: var(--yellow); }
+        .btn-suggestion {
+            padding: 8px 18px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
+            cursor: pointer; border: 1px solid rgba(251,191,36,0.4); background: rgba(251,191,36,0.1);
+            color: var(--yellow); transition: all 0.2s; font-family: 'JetBrains Mono', monospace;
+        }
+        .btn-suggestion:hover { background: rgba(251,191,36,0.2); }
+
+        /* DISCLAIMER */
+        .disclaimer {
+            background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 14px 18px; font-size: 0.78rem; color: var(--text-muted); line-height: 1.6;
+        }
+        .disclaimer strong { color: var(--text); }
+
+        /* ERROR */
+        .error-card {
+            background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25);
+            border-radius: var(--radius); padding: 20px 24px; color: var(--red); font-size: 0.9rem; margin-bottom: 24px;
+        }
+        .error-card strong { display: block; margin-bottom: 4px; }
+
+        /* SERVER STATUS */
+        .server-status {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 0.78rem; font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted); margin-bottom: 32px;
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: background 0.3s; }
+        .status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+        .status-dot.offline { background: var(--red); }
+
+        @media (max-width: 600px) {
+            .hero-head h1 { font-size: 1.8rem; }
+            .verdict-top { flex-direction: column-reverse; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="nav-inner">
+        <a href="/" class="logo">&lt;<span>aa</span>/&gt;</a>
+        <a href="/" class="back-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            Back to portfolio
+        </a>
+    </div>
+</nav>
+
+<main>
+    <div class="hero-head">
+        <h1>📧 Email Validator</h1>
+        <p>Real SMTP-level verification. We connect directly to the mail server and probe if the mailbox actually exists.</p>
+    </div>
+
+    <div class="server-status">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">Checking backend…</span>
+    </div>
+
+    <div class="search-box">
+        <input type="email" id="email-input" placeholder="john.doe@gmail.com" autocomplete="off" spellcheck="false">
+        <button class="btn-check" id="check-btn" onclick="validateEmail()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.6 19.79 19.79 0 0 1 1.61 5a2 2 0 0 1 1.99-2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 17v-.08z"/></svg>
+            Validate
+        </button>
+    </div>
+
+    <div class="examples">
+        <span class="examples-label">try:</span>
+        <span class="example-chip" onclick="setExample(this)">test@gmail.com</span>
+        <span class="example-chip" onclick="setExample(this)">notreal999xyz@gmail.com</span>
+        <span class="example-chip" onclick="setExample(this)">user@mailinator.com</span>
+        <span class="example-chip" onclick="setExample(this)">someone@gmial.com</span>
+    </div>
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <div class="loader-steps">
+            <div class="loader-step" id="step-1">🔤 Checking syntax…</div>
+            <div class="loader-step" id="step-2">🌐 Looking up MX records…</div>
+            <div class="loader-step" id="step-3">🤝 Connecting to mail server…</div>
+            <div class="loader-step" id="step-4">📬 Probing mailbox via SMTP…</div>
+            <div class="loader-step" id="step-5">⚖️ Computing verdict…</div>
+        </div>
+    </div>
+
+    <div id="result">
+        <div id="suggestion-area"></div>
+        <div id="verdict-area"></div>
+        <div id="checks-area"></div>
+        <div id="mx-area"></div>
+        <div id="smtp-area"></div>
+        <div class="disclaimer">
+            <strong>How it works:</strong> We perform a real SMTP handshake with the domain's mail server —
+            <code style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;">EHLO → MAIL FROM → RCPT TO</code> —
+            and read the server's response code. A <strong>250</strong> means the mailbox was accepted;
+            a <strong>550</strong> means it was rejected. Some servers (including Gmail) use catch-all policies
+            or greylisting, which may result in an <em>inconclusive</em> result.
+        </div>
+    </div>
+</main>
+
+<script>
+const API = 'http://localhost:3322';
+let isChecking = false;
+
+// ── Server health check ──────────────────────────────────────────────────────
+async function checkServerHealth() {
+    try {
+        const res = await fetch(`${API}/health`, { signal: AbortSignal.timeout(3000) });
+        if (res.ok) {
+            document.getElementById('status-dot').className = 'status-dot online';
+            document.getElementById('status-text').textContent = 'Backend online — SMTP probe ready';
+        } else throw new Error();
+    } catch {
+        document.getElementById('status-dot').className = 'status-dot offline';
+        document.getElementById('status-text').textContent = 'Backend offline — run: npm start in /email-validator';
+    }
+}
+checkServerHealth();
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function setExample(el) {
+    document.getElementById('email-input').value = el.textContent.trim();
+    document.getElementById('email-input').focus();
+}
+
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function verdictColor(v) {
+    return { valid: 'var(--green)', invalid: 'var(--red)', risky: 'var(--yellow)', unknown: 'var(--orange)' }[v] || 'var(--text-muted)';
+}
+
+function verdictEmoji(v) {
+    return { valid: '✅ Valid Mailbox', invalid: '❌ Invalid Mailbox', risky: '⚠️ Risky / Disposable', unknown: '❓ Inconclusive' }[v] || '?';
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
+async function validateEmail() {
+    if (isChecking) return;
+    const email = document.getElementById('email-input').value.trim();
+    if (!email) { document.getElementById('email-input').focus(); return; }
+
+    isChecking = true;
+    const btn = document.getElementById('check-btn');
+    btn.disabled = true;
+
+    document.getElementById('result').classList.remove('visible');
+    const loader = document.getElementById('loader');
+    loader.classList.add('visible');
+    ['step-1','step-2','step-3','step-4','step-5'].forEach(id => {
+        document.getElementById(id).className = 'loader-step';
+    });
+
+    const activate = (id, delay) => new Promise(r => setTimeout(() => {
+        document.getElementById(id).classList.add('active'); r();
+    }, delay));
+    const done = id => {
+        document.getElementById(id).classList.remove('active');
+        document.getElementById(id).classList.add('done');
+    };
+
+    try {
+        await activate('step-1', 100);
+        await new Promise(r => setTimeout(r, 300));
+        done('step-1');
+
+        await activate('step-2', 100);
+        await new Promise(r => setTimeout(r, 400));
+        done('step-2');
+
+        await activate('step-3', 100);
+        await new Promise(r => setTimeout(r, 300));
+        done('step-3');
+
+        await activate('step-4', 100);
+
+        const res = await fetch(`${API}/validate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        });
+
+        done('step-4');
+        await activate('step-5', 100);
+
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        const data = await res.json();
+
+        await new Promise(r => setTimeout(r, 300));
+        done('step-5');
+        loader.classList.remove('visible');
+
+        renderResult(data);
+        document.getElementById('result').classList.add('visible');
+        document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    } catch (e) {
+        loader.classList.remove('visible');
+        document.getElementById('verdict-area').innerHTML = `
+            <div class="error-card">
+                <strong>⚠ Could not reach the backend</strong>
+                Make sure the server is running: open a terminal in <code style="font-family:'JetBrains Mono',monospace">/email-validator</code>
+                and run <code style="font-family:'JetBrains Mono',monospace">npm start</code>
+                <br><br><small>${escHtml(e.message)}</small>
+            </div>`;
+        document.getElementById('result').classList.add('visible');
+    } finally {
+        isChecking = false;
+        btn.disabled = false;
+    }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderResult(d) {
+    const color = verdictColor(d.verdict);
+    const r = 38, circ = 2 * Math.PI * r;
+
+    // Suggestion
+    const suggArea = document.getElementById('suggestion-area');
+    suggArea.innerHTML = d.suggestion
+        ? `<div class="suggestion-card">
+               <span class="suggestion-text">💡 Did you mean <strong>${escHtml(d.suggestion)}</strong>?</span>
+               <button class="btn-suggestion" onclick="useSuggestion('${escHtml(d.suggestion)}')">Use this →</button>
+           </div>`
+        : '';
+
+    // Verdict card
+    document.getElementById('verdict-area').innerHTML = `
+    <div class="verdict-card ${d.verdict}">
+        <div class="verdict-top">
+            <div>
+                <div class="verdict-label">Result</div>
+                <div class="verdict-email">${escHtml(d.email)}</div>
+                <div class="verdict-title">${verdictEmoji(d.verdict)}</div>
+            </div>
+            <div class="conf-wrap">
+                <div class="conf-gauge">
+                    <svg viewBox="0 0 90 90">
+                        <circle class="gauge-track" cx="45" cy="45" r="${r}"/>
+                        <circle class="gauge-fill" id="conf-circle" cx="45" cy="45" r="${r}"
+                            stroke="${color}" stroke-dasharray="${circ}" stroke-dashoffset="${circ}"/>
+                    </svg>
+                    <span class="conf-number" style="color:${color}" id="conf-number">0%</span>
+                    <span class="conf-sub">confidence</span>
+                </div>
+                <div class="conf-label">confidence</div>
+            </div>
+        </div>
+    </div>`;
+
+    // Animate gauge
+    requestAnimationFrame(() => {
+        const circle = document.getElementById('conf-circle');
+        const numEl  = document.getElementById('conf-number');
+        const pct    = d.confidence;
+        if (circle) circle.style.strokeDashoffset = circ * (1 - pct / 100);
+        let start = null;
+        function step(ts) {
+            if (!start) start = ts;
+            const p = Math.min((ts - start) / 1000, 1);
+            const e = 1 - Math.pow(1 - p, 3);
+            if (numEl) numEl.textContent = Math.round(e * pct) + '%';
+            if (p < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+    });
+
+    // Checks grid
+    const c = d.checks;
+    const smtpVal = c.smtpProbe === true ? 'Accepted ✓' : c.smtpProbe === false ? 'Rejected ✗' : 'Inconclusive';
+    const smtpClass = c.smtpProbe === true ? 'pass' : c.smtpProbe === false ? 'fail' : 'warn';
+    document.getElementById('checks-area').innerHTML = `
+    <div class="checks-grid">
+        <div class="check-item">
+            <span class="check-icon">🔤</span>
+            <span class="check-label">Syntax</span>
+            <span class="check-value ${c.syntax ? 'pass' : 'fail'}">${c.syntax ? 'Valid ✓' : 'Invalid ✗'}</span>
+        </div>
+        <div class="check-item">
+            <span class="check-icon">🌐</span>
+            <span class="check-label">MX Records</span>
+            <span class="check-value ${c.mxExists ? 'pass' : 'fail'}">${c.mxExists ? 'Found ✓' : 'Not found ✗'}</span>
+        </div>
+        <div class="check-item">
+            <span class="check-icon">🗑</span>
+            <span class="check-label">Disposable</span>
+            <span class="check-value ${c.disposable ? 'fail' : 'pass'}">${c.disposable ? 'Yes ⚠' : 'No ✓'}</span>
+        </div>
+        <div class="check-item">
+            <span class="check-icon">📬</span>
+            <span class="check-label">SMTP Probe</span>
+            <span class="check-value ${smtpClass}">${smtpVal}</span>
+        </div>
+    </div>`;
+
+    // MX records
+    const mxArea = document.getElementById('mx-area');
+    if (d.mx && d.mx.length > 0) {
+        const rows = d.mx.map(m => `
+            <div class="mx-row">
+                <span class="mx-priority">P${m.priority}</span>
+                <span class="mx-host">${escHtml(m.host)}</span>
+            </div>`).join('');
+        mxArea.innerHTML = `
+        <div class="info-card">
+            <h3>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                MX Records for ${escHtml(d.email.split('@')[1])}
+            </h3>
+            <div class="mx-list">${rows}</div>
+        </div>`;
+    } else {
+        mxArea.innerHTML = '';
+    }
+
+    // SMTP log
+    const smtpArea = document.getElementById('smtp-area');
+    if (d.smtpLog && d.smtpLog.length > 0) {
+        const lines = d.smtpLog.map(l => {
+            const cls = l.startsWith('→') ? 'send' : 'recv';
+            return `<div class="smtp-line ${cls}">${escHtml(l)}</div>`;
+        }).join('');
+        smtpArea.innerHTML = `
+        <div class="smtp-card">
+            <h3 onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display==='none'?'flex':'none'">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                SMTP Conversation Log <span style="color:var(--text-muted);font-weight:400;margin-left:6px;">(click to toggle)</span>
+            </h3>
+            <div class="smtp-log">${lines}</div>
+        </div>`;
+    } else {
+        smtpArea.innerHTML = '';
+    }
+}
+
+function useSuggestion(email) {
+    document.getElementById('email-input').value = email;
+    validateEmail();
+}
+
+document.getElementById('email-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') validateEmail();
+});
+</script>
+</body>
+</html>
+
