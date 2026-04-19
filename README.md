@@ -20,12 +20,24 @@ A real **SMTP-level** email validation tool. Unlike basic regex or syntax checke
 
 ## Getting started
 
+### Local development
 ```bash
 npm install
 npm start
 ```
-
 Then open `index.html` in your browser. The backend runs on `http://localhost:3322`.
+
+### Deploy backend to Koyeb (free)
+1. Go to [koyeb.com](https://koyeb.com) → **Create Web Service**
+2. Connect your GitHub repo `alessandroarioli/email-validator`
+3. Set **Run command**: `node server.js`
+4. Set **Port**: `8000` (Koyeb default) — the app reads `process.env.PORT` automatically
+5. Deploy — your backend will be live at `https://email-validator-alessandroarioli.koyeb.app`
+
+### Deploy frontend to GitHub Pages
+1. Go to your GitHub repo → **Settings → Pages**
+2. Set source to **Deploy from branch → main → / (root)**
+3. Your frontend will be live at `https://alessandroarioli.github.io/email-validator`
 
 ## ⚠️ Notes
 
